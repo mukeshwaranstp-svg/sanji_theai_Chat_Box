@@ -35,9 +35,4 @@ Interacting with Sanji is straightforward:
 ### **Contributing**
 We welcome contributions to Sanji from developers, designers, and anyone interested in improving the project. If you have an idea or would like to report a bug, please open an issue or submit a pull request. 🌟
 
-### **License**
-Sanji is licensed under the MIT License, allowing for free use, modification, and distribution. 📜
 
-By using Sanji, you agree to the terms and conditions outlined in the license. If you have any questions or concerns, feel free to contact us. 📞
-
-Happy chatting with Sanji! 😊
