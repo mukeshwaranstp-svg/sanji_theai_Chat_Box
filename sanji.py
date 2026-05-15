@@ -1,5 +1,9 @@
 import os
 import json
+import webbrowser
+import subprocess
+from web_search_prompt import search_prompt
+from launch_app_prompt import launch_prompt
 from groq import Groq
 from dotenv import load_dotenv
 from ddgs import DDGS
@@ -19,6 +23,10 @@ current_time = now.strftime("%B %d, %Y %H:%M:%S")
 load_dotenv()
 
 client = Groq()
+
+SEARCH_PROMPT = search_prompt()
+
+LAUNCH_PROMPT = launch_prompt()
 
 def load_memory():
     if os.path.exists("sanji_memory.json"):
@@ -40,7 +48,6 @@ today's date is {current_time}.
 What you know about the user:
 {sanji_memory}"""
 
-SEARCH_PROMPT = "You decide if a question needs current/live information from the web. Say YES if the question is about: current events, news, who is in power, latest updates, prices, sports results, or anything that changes over time. Say NO for general knowledge. Reply only YES or NO."
 
 conversation= []
 
@@ -54,13 +61,13 @@ def chat(user_input):
 
     conversation.append({"role": "user", "content": user_input})
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "system", "content": SYSTEM_PROMPT}]+conversation
     )
     conversation.append({"role": "assistant", "content": response.choices[0].message.content})
 
     fact_check = client.chat.completions.create(
-        model = "llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "system", "content": "You extract personal facts about the user from their message. If there is a personal fact, return only the fact as a short sentence. If there is no personal fact, return 'none' "},
        { "role": "user", "content": user_input}]
 
@@ -76,28 +83,67 @@ def chat(user_input):
 
 def web_search(query):
     with DDGS() as ddgs:
-        results = ddgs.text(query, max_results= 100)
+        results = ddgs.text(query, max_results= 20)
         output =""
         for result in results:
             output += result["title"] +'\n'
             output += result["body"] +'\n''\n'
-            return output
+        return output
 def need_web_search(user_input):
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages = [{"role":"system","content":SEARCH_PROMPT},
                     {"role":"user","content":user_input}]
     )
     return "YES" in response.choices[0].message.content
+
+def detect (user_input):
+    response = client.chat.completions.create(
+       model="llama-3.1-8b-instant",
+        messages = [ {
+                       "role":"system","content":"""You are an app launcher assistant.
+If the user wants to open a WEBSITE → reply with just the full URL. Example: https://youtube.com
+If the user wants to search something on YouTube → reply with the full search URL. Example: https://www.youtube.com/results?search_query=jk+video
+If the user wants to open a DESKTOP APP → reply with just the app exe name. Example: spotify, notepad, code
+Reply with ONLY the URL or app name. Nothing else."""},
+        {"role": "user","content": user_input}
+     ]
+    )
+    return response.choices[0].message.content.strip()
+
+def need_launch_app(user_input):
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages = [ {
+                       "role":"system","content":LAUNCH_PROMPT},
+        {"role": "user","content": user_input}
+     ]
+    )
+    return "YES" in response.choices[0].message.content
+
+def launch_app(app_info):
+    if app_info.startswith("http"):
+        webbrowser.open(app_info)
+    else:
+        subprocess.Popen(app_info)
+
 while True:
     user_input = input("you: ")
     if user_input.lower() in ["quit", "exit", "stop","bye"]:
         print("Sanji;Alright, if you need any help,just type hellow baddy, i will be there")
         break
-    if need_web_search(user_input):
+    elif need_launch_app(user_input):      # check app FIRST
+        print("🚀 Launching...")
+        app_info = detect(user_input)
+        launch_app(app_info)
+
+    elif need_web_search(user_input):    # then web search
         print("🔍 Searching web...")
         search_result = web_search(user_input)
-        user_input = f" web_result:{search_result}\n\nuser question:{user_input}"
+        user_input = f"web_result:{search_result}\n\nuser question:{user_input}"
+        sanji_response = chat(user_input)
+        print(f"sanji:{sanji_response}")
 
-    sanji_response = chat(user_input)
-    print(f"sanji:{sanji_response}")
+    else:
+        sanji_response = chat(user_input)
+        print(f"sanji:{sanji_response}")
